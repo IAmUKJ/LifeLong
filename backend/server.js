@@ -13,7 +13,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: "https://lifelong-1.netlify.app/",
     methods: ["GET", "POST"]
   }
 });
