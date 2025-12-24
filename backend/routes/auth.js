@@ -10,11 +10,20 @@ const { auth } = require('../middleware/auth');
 const { upload, uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
 
 // Generate JWT Token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET || 'your_jwt_secret_key_here', {
-    expiresIn: '30d'
-  });
-};
+// const generateToken = (userId) => {
+//   return jwt.sign({ userId }, process.env.JWT_SECRET || 'your_jwt_secret_key_here', {
+//     expiresIn: '30d'
+//   });
+// };
+const generateToken=(userId)=>{
+    try{
+        const token= jwt.sign({userId},process.env.JWT_SECRET,{expiresIn:"7d"})
+        return token
+    }
+    catch(error){
+        console.log("gen token error")
+    }
+}
 
 // Register User
 router.post('/register', 
@@ -92,7 +101,12 @@ router.post('/register',
     }
 
     const token = generateToken(user._id);
-
+    res.cookie("token",token,{
+      httpOnly:true,
+      maxAge:7*24*60*60*1000,
+      sameSite:"None",
+      secure:true
+    })
     res.status(201).json({
       token,
       user: {
@@ -121,21 +135,23 @@ router.post('/login', [
     }
 
     const { email, password } = req.body;
-
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
+    if (!user || !(await user.comparePassword(password))) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     const token = generateToken(user._id);
+    const isProd = process.env.NODE_ENV === "production";
 
-    res.json({
-      token,
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,        // MUST be true
+      sameSite: "None",    // MUST be None
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.status(200).json({
+      message: "Login successful",
       user: {
         id: user._id,
         name: user.name,
@@ -143,6 +159,7 @@ router.post('/login', [
         role: user.role
       }
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -160,4 +177,14 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+router.get("/logout",async (req,res)=>{
+    try{
+        res.clearCookie("token")
+        return res.status(200).json({message:"Log Out Successfully"})
+    }
+
+    catch(error){
+        return res.status(500).json({message:`logout error ${error}`})
+    }
+})
 module.exports = router;
