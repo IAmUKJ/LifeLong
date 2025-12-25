@@ -1,87 +1,76 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { auth } = require('../middleware/auth');
 const { Chat } = require('../models/Chat');
 const User = require('../models/User');
 const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
-const { upload, uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
+const { uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
+const { upload } = require('../middleware/multer');
 
-// Get or create chat room
+/* =========================
+   CREATE / GET CHAT ROOM
+========================= */
 router.post('/room', auth, async (req, res) => {
   try {
     const { otherUserId } = req.body;
 
-    // Find existing chat
     let chat = await Chat.findOne({
-      $and: [
-        { 'participants.userId': req.user._id },
-        { 'participants.userId': otherUserId }
-      ]
+      'participants.userId': { $all: [req.user._id, otherUserId] }
     });
 
     if (!chat) {
-      // Get roles
       const currentUser = await User.findById(req.user._id);
       const otherUser = await User.findById(otherUserId);
+      if (!otherUser) return res.status(404).json({ message: 'User not found' });
 
-      if (!otherUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
+      if (currentUser.role !== otherUser.role) {
+        const patientUserId =
+          currentUser.role === 'patient' ? req.user._id : otherUserId;
+        const doctorUserId =
+          currentUser.role === 'doctor' ? req.user._id : otherUserId;
 
-      // Verify connection (patient-doctor relationship)
-      if (currentUser.role === 'patient' && otherUser.role === 'doctor') {
-        const patient = await Patient.findOne({ userId: req.user._id });
-        const doctor = await Doctor.findOne({ userId: otherUserId });
-
-        if (!patient || !doctor) {
-          return res.status(404).json({ message: 'Profile not found' });
-        }
-
-        const isConnected = patient.currentDoctors.some(
-          doc => doc.doctorId.toString() === doctor._id.toString()
-        );
-
-        if (!isConnected) {
-          return res.status(403).json({ message: 'Not connected with this doctor' });
-        }
-      } else if (currentUser.role === 'doctor' && otherUser.role === 'patient') {
-        const doctor = await Doctor.findOne({ userId: req.user._id });
-        const patient = await Patient.findOne({ userId: otherUserId });
+        const patient = await Patient.findOne({ userId: patientUserId });
+        const doctor = await Doctor.findOne({ userId: doctorUserId });
 
         if (!patient || !doctor) {
           return res.status(404).json({ message: 'Profile not found' });
         }
 
         const isConnected = patient.currentDoctors.some(
-          doc => doc.doctorId.toString() === doctor._id.toString()
+          d => d.doctorId.toString() === doctor._id.toString()
         );
 
         if (!isConnected) {
-          return res.status(403).json({ message: 'Not connected with this patient' });
+          return res.status(403).json({ message: 'Not connected' });
         }
       } else {
         return res.status(403).json({ message: 'Invalid chat participants' });
       }
 
-      // Create new chat
-      chat = new Chat({
+      chat = await Chat.create({
         participants: [
           { userId: req.user._id, role: currentUser.role },
           { userId: otherUserId, role: otherUser.role }
-        ]
+        ],
+        unreadCount: {
+          [req.user._id]: 0,
+          [otherUserId]: 0
+        }
       });
-      await chat.save();
     }
 
     res.json({ roomId: chat._id, chat });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get all chats for user with unread counts
+/* =========================
+   GET CHAT LIST
+========================= */
 router.get('/list', auth, async (req, res) => {
   try {
     const chats = await Chat.find({
@@ -90,166 +79,144 @@ router.get('/list', auth, async (req, res) => {
       .populate('participants.userId', 'name email profilePicture role')
       .sort({ lastMessageTime: -1 });
 
-    // Filter out chats where participants are not properly populated
-    const validChats = chats.filter(chat => 
-      chat.participants.every(p => p.userId && p.userId._id)
-    );
-
-    // Add unread count for each chat
-    const chatsWithUnread = validChats.map(chat => {
-      let unreadCount = 0;
-      const chatObj = chat.toObject();
-      if (chatObj.unreadCount) {
-        if (typeof chatObj.unreadCount === 'object') {
-          // Handle as plain object
-          unreadCount = chatObj.unreadCount[req.user._id.toString()] || 0;
-        }
-      }
+    const result = chats.map(chat => {
+      const obj = chat.toObject();
       return {
-        ...chatObj,
-        unreadCount
+        ...obj,
+        unreadCount: obj.unreadCount?.[req.user._id.toString()] || 0
       };
     });
 
-    res.json(chatsWithUnread);
-  } catch (error) {
-    console.error(error);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get chat messages
+/* =========================
+   GET CHAT MESSAGES
+========================= */
 router.get('/:roomId/messages', auth, async (req, res) => {
   try {
     const chat = await Chat.findById(req.params.roomId);
+    if (!chat) return res.status(404).json({ message: 'Chat not found' });
 
-    if (!chat) {
-      return res.status(404).json({ message: 'Chat not found' });
-    }
-
-    // Verify user is participant
     const isParticipant = chat.participants.some(
       p => p.userId.toString() === req.user._id.toString()
     );
-
-    if (!isParticipant) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    if (!isParticipant) return res.status(403).json({ message: 'Access denied' });
 
     res.json(chat.messages);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Send message (handled by socket.io, but keeping REST endpoint for backup)
-router.post('/:roomId/message', 
+/* =========================
+   SEND MESSAGE (REAL-TIME FIXED)
+========================= */
+router.post(
+  '/:roomId/message',
   upload.single('file'),
   uploadToCloudinaryMiddleware,
-  auth, 
+  auth,
   async (req, res) => {
     try {
-      const { message, messageType = 'text', fileName } = req.body;
-      const chat = await Chat.findById(req.params.roomId);
+      const { message = '', messageType = 'text', fileName = '' } = req.body;
+      const roomId = req.params.roomId;
 
-      if (!chat) {
-        return res.status(404).json({ message: 'Chat not found' });
-      }
+      const chat = await Chat.findById(roomId);
+      if (!chat) return res.status(404).json({ message: 'Chat not found' });
 
-      // Verify user is participant
       const isParticipant = chat.participants.some(
         p => p.userId.toString() === req.user._id.toString()
       );
+      if (!isParticipant) return res.status(403).json({ message: 'Access denied' });
 
-      if (!isParticipant) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
+      const otherParticipant = chat.participants.find(
+        p => p.userId.toString() !== req.user._id.toString()
+      );
+      const otherUserId = otherParticipant.userId.toString();
 
       const newMessage = {
+        _id: new mongoose.Types.ObjectId(),
         senderId: req.user._id,
-        message: message || '',
-        messageType: messageType,
+        message,
+        messageType,
         fileUrl: req.fileUrl || '',
-        fileName: fileName || '',
+        fileName,
         timestamp: new Date(),
         read: false,
         readBy: []
       };
 
-      chat.messages.push(newMessage);
-      chat.lastMessage = messageType === 'text' ? message : (messageType === 'image' ? '📷 Image' : '📎 File');
-      chat.lastMessageTime = new Date();
-      chat.updatedAt = new Date();
-
-      // Update unread count for other participant
-      const otherParticipant = chat.participants.find(
-        p => p.userId.toString() !== req.user._id.toString()
-      );
-      if (otherParticipant) {
-        if (!chat.unreadCount) {
-          chat.unreadCount = {};
+      await Chat.findByIdAndUpdate(roomId, {
+        $push: { messages: newMessage },
+        $set: {
+          lastMessage:
+            messageType === 'text'
+              ? message
+              : messageType === 'image'
+              ? '📷 Image'
+              : '📎 File',
+          lastMessageTime: new Date()
+        },
+        $inc: {
+          [`unreadCount.${otherUserId}`]: 1
         }
-        const currentUnread = chat.unreadCount[otherParticipant.userId.toString()] || 0;
-        chat.unreadCount[otherParticipant.userId.toString()] = currentUnread + 1;
-      }
+      });
 
-      await chat.save();
+      // 🔥 REAL-TIME EMIT (THIS WAS THE MISSING PIECE)
+      const io = req.app.get('io');
+      io.to(roomId).emit('receiveMessage', {
+        roomId,
+        message: newMessage
+      });
 
-      res.json(chat.messages[chat.messages.length - 1]);
-    } catch (error) {
-      console.error(error);
+      res.json(newMessage);
+    } catch (err) {
+      console.error(err);
       res.status(500).json({ message: 'Server error' });
     }
   }
 );
 
-// Mark messages as read
+/* =========================
+   MARK MESSAGES AS READ
+========================= */
 router.put('/:roomId/read', auth, async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.roomId);
-
-    if (!chat) {
-      return res.status(404).json({ message: 'Chat not found' });
-    }
-
-    // Verify user is participant
-    const isParticipant = chat.participants.some(
-      p => p.userId.toString() === req.user._id.toString()
+    await Chat.updateOne(
+      { _id: req.params.roomId, 'participants.userId': req.user._id },
+      {
+        $set: {
+          'messages.$[msg].read': true,
+          [`unreadCount.${req.user._id}`]: 0
+        },
+        $addToSet: {
+          'messages.$[msg].readBy': {
+            userId: req.user._id,
+            readAt: new Date()
+          }
+        }
+      },
+      {
+        arrayFilters: [
+          {
+            'msg.senderId': { $ne: req.user._id },
+            'msg.read': false
+          }
+        ]
+      }
     );
 
-    if (!isParticipant) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    // Mark all messages as read for this user
-    chat.messages.forEach(msg => {
-      if (msg.senderId.toString() !== req.user._id.toString() && !msg.read) {
-        msg.read = true;
-        if (!msg.readBy) {
-          msg.readBy = [];
-        }
-        msg.readBy.push({
-          userId: req.user._id,
-          readAt: new Date()
-        });
-      }
-    });
-
-    // Reset unread count
-    if (!chat.unreadCount) {
-      chat.unreadCount = {};
-    }
-    chat.unreadCount[req.user._id.toString()] = 0;
-
-    await chat.save();
-
     res.json({ message: 'Messages marked as read' });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 module.exports = router;
-

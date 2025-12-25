@@ -7,7 +7,8 @@ const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
 const Hospital = require('../models/Hospital');
 const { auth } = require('../middleware/auth');
-const { upload, uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
+const { uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
+const { upload } = require('../middleware/multer');
 
 // Generate JWT Token
 // const generateToken = (userId) => {

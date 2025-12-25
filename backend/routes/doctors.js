@@ -5,7 +5,8 @@ const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 const Patient = require('../models/Patient');
 const { Chat } = require('../models/Chat');
-const { upload, uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
+const { uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
+const { upload } = require('../middleware/multer');
 
 // Get all verified doctors
 router.get('/', async (req, res) => {
