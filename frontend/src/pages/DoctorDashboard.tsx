@@ -104,10 +104,28 @@ const DoctorDashboard: React.FC = () => {
             {/* Desktop User Menu */}
             <div className="hidden md:flex items-center space-x-4">
               <div className="flex items-center space-x-3 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-md">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-md">
+                  {doctorProfile?.profilePicture? (
+                    <img
+                      src={doctorProfile.profilePicture}
+                      alt="Doctor Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Dr. {user?.name}</p>
@@ -152,10 +170,28 @@ const DoctorDashboard: React.FC = () => {
                 className="md:hidden border-t border-gray-200 py-4 space-y-2 overflow-hidden"
               >
                 <div className="flex items-center space-x-3 px-4 py-3 bg-blue-50 rounded-lg">
-                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  <div className="w-10 h-10 bg-blue-600 rounded-full overflow-hidden flex items-center justify-center">
+                    {doctorProfile?.profilePicture? (
+                    <img
+                      src={doctorProfile.profilePicture}
+                      alt="Doctor Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
                     </svg>
+                  )}
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">Dr. {user?.name}</p>

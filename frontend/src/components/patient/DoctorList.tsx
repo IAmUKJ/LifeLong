@@ -116,8 +116,28 @@ const DoctorList: React.FC<DoctorListProps> = ({ symptoms, onStartChat }) => {
                     {/* Doctor Header */}
                     <div className="p-5 border-b border-gray-100">
                       <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-teal-500 flex items-center justify-center text-white text-xl font-semibold flex-shrink-0">
-                          {(doctor.userId?.name || 'Dr').charAt(0).toUpperCase()}
+                        <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-teal-500 flex items-center justify-center text-white text-xl font-semibold flex-shrink-0">
+                          {doctor?.profilePicture? (
+                          <img
+                            src={doctor.profilePicture}
+                            alt="Doctor Profile"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <svg
+                            className="w-6 h-6 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                            />
+                          </svg>
+                        )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-lg font-semibold text-gray-900 truncate">

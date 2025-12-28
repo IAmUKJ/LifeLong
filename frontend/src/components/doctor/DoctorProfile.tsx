@@ -20,6 +20,8 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
     },
     symptoms: [] as string[],
   });
+  const [profilePic, setProfilePic] = useState<File | null>(null);
+  const [profilePicPreview, setProfilePicPreview] = useState<string>('');
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licensePreview, setLicensePreview] = useState<string>('');
   const [currentQualification, setCurrentQualification] = useState({
@@ -50,6 +52,7 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
           availability: response.data.availability || { days: [], timeSlots: [] },
           symptoms: response.data.symptoms || [],
         });
+
         if (response.data.licenseDocument) {
           setLicensePreview(response.data.licenseDocument);
         }
@@ -61,78 +64,104 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setLicenseFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLicensePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+    if (!file) return;
 
+    setLicenseFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setLicensePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+  const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setProfilePic(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setProfilePicPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
   const addQualification = () => {
-    if (currentQualification.degree && currentQualification.institution) {
-      setFormData({
-        ...formData,
-        qualifications: [
-          ...formData.qualifications,
-          {
-            ...currentQualification,
-            year: parseInt(currentQualification.year) || new Date().getFullYear(),
-          },
-        ],
-      });
-      setCurrentQualification({ degree: '', institution: '', year: '' });
-    }
+    if (!currentQualification.degree || !currentQualification.institution) return;
+
+    setFormData(prev => ({
+      ...prev,
+      qualifications: [
+        ...prev.qualifications,
+        {
+          ...currentQualification,
+          year: parseInt(currentQualification.year) || new Date().getFullYear(),
+        },
+      ],
+    }));
+
+    setCurrentQualification({ degree: '', institution: '', year: '' });
   };
 
   const addSymptom = () => {
-    if (currentSymptom && !formData.symptoms.includes(currentSymptom)) {
-      setFormData({
-        ...formData,
-        symptoms: [...formData.symptoms, currentSymptom],
-      });
-      setCurrentSymptom('');
-    }
+    if (!currentSymptom || formData.symptoms.includes(currentSymptom)) return;
+
+    setFormData(prev => ({
+      ...prev,
+      symptoms: [...prev.symptoms, currentSymptom],
+    }));
+
+    setCurrentSymptom('');
   };
 
   const addTimeSlot = () => {
-    if (currentTimeSlot.start && currentTimeSlot.end) {
-      setFormData({
-        ...formData,
-        availability: {
-          ...formData.availability,
-          timeSlots: [...formData.availability.timeSlots, { ...currentTimeSlot }],
-        },
-      });
-      setCurrentTimeSlot({ start: '', end: '' });
-    }
+    if (!currentTimeSlot.start || !currentTimeSlot.end) return;
+
+    setFormData(prev => ({
+      ...prev,
+      availability: {
+        ...prev.availability,
+        timeSlots: [...prev.availability.timeSlots, currentTimeSlot],
+      },
+    }));
+
+    setCurrentTimeSlot({ start: '', end: '' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 🔴 IMPORTANT: manual validation (instead of HTML required)
+    if (!licenseFile && !licensePreview) {
+      alert('License document is required');
+      return;
+    }
+
     setUploading(true);
+
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('specialization', formData.specialization);
-      formDataToSend.append('experience', formData.experience);
-      formDataToSend.append('bio', formData.bio);
-      formDataToSend.append('consultationFee', formData.consultationFee);
-      formDataToSend.append('qualifications', JSON.stringify(formData.qualifications));
-      formDataToSend.append('availability', JSON.stringify(formData.availability));
-      formDataToSend.append('symptoms', JSON.stringify(formData.symptoms));
-      
-      if (licenseFile) {
-        formDataToSend.append('licenseDocument', licenseFile);
+      const fd = new FormData();
+
+      fd.append('specialization', formData.specialization);
+      fd.append('experience', formData.experience);
+      fd.append('bio', formData.bio);
+      fd.append('consultationFee', formData.consultationFee);
+
+      if (formData.qualifications.length > 0)
+        fd.append('qualifications', JSON.stringify(formData.qualifications));
+
+      if (
+        formData.availability.days.length > 0 ||
+        formData.availability.timeSlots.length > 0
+      ) {
+        fd.append('availability', JSON.stringify(formData.availability));
       }
 
-      await api.put('/doctors/profile', formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      alert('Profile updated successfully! Your license is being reviewed by admin.');
+      if (formData.symptoms.length > 0)
+        fd.append('symptoms', JSON.stringify(formData.symptoms));
+
+      if (licenseFile)
+        fd.append('licenseDocument', licenseFile);
+
+      if (profilePic)
+        fd.append('profilePicture', profilePic);
+      await api.put('/doctors/profile', fd);
+
+      alert('Profile updated successfully! Your license is being reviewed.');
       setLicenseFile(null);
       onUpdate();
     } catch (error: any) {
@@ -142,17 +171,6 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
     }
   };
 
-  const toggleDay = (day: string) => {
-    setFormData({
-      ...formData,
-      availability: {
-        ...formData.availability,
-        days: formData.availability.days.includes(day)
-          ? formData.availability.days.filter((d) => d !== day)
-          : [...formData.availability.days, day],
-      },
-    });
-  };
 
   return (
     <div className="bg-white p-6 rounded-lg shadow">
@@ -195,6 +213,27 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
             readOnly
             className="w-full px-4 py-2 border rounded-lg bg-gray-100"
           />
+        </div>
+        <div>
+          <label className="block text-gray-700 mb-2">Upload Profile Picture *</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleProfilePicChange}
+            className="w-full px-4 py-2 border rounded-lg"
+            required={!profilePicPreview}
+          />
+          {profilePicPreview && (
+            <div className="mt-2">
+              <img
+                src={profilePicPreview}
+                alt="Profile preview"
+                className="w-32 h-32 object-cover rounded-full border"
+              />
+            </div>
+          )}
+
+          <p className="text-xs text-gray-500 mt-1">Upload your clear image (Max 5MB)</p>
         </div>
         <div>
           <label className="block text-gray-700 mb-2">Upload License Document *</label>
@@ -262,7 +301,7 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
         <button
           type="submit"
           disabled={uploading}
-          className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          className="w-20% px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
         >
           {uploading ? (
             <>
@@ -273,7 +312,7 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ onUpdate }) => {
               <span>Uploading...</span>
             </>
           ) : (
-            'Submit for Verification'
+            'Update Profile'
           )}
         </button>
       </form>

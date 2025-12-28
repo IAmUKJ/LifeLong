@@ -30,6 +30,10 @@ const doctorSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  profilePicture: {
+    type: String // URL to uploaded document
+  },
+
   licenseDocument: {
     type: String // URL to uploaded document
   },

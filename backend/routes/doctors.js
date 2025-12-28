@@ -51,24 +51,17 @@ router.get('/profile', auth, authorize('doctor'), async (req, res) => {
 });
 
 // Complete doctor profile (after registration) with file upload
-router.put('/profile', 
-  auth, 
-  authorize('doctor'), 
-  upload.single('licenseDocument'),
+router.put(
+  '/profile',
+  auth,
+  authorize('doctor'),
+  upload.fields([
+    { name: 'licenseDocument', maxCount: 1 },
+    { name: 'profilePicture', maxCount: 1 }
+  ]),
   uploadToCloudinaryMiddleware,
   async (req, res) => {
     try {
-      const {
-        specialization,
-        qualifications,
-        experience,
-        practiceLicense,
-        registrationNumber,
-        bio,
-        consultationFee,
-        availability,
-        symptoms
-      } = req.body;
 
       const doctor = await Doctor.findOne({ userId: req.user._id });
 
@@ -76,30 +69,72 @@ router.put('/profile',
         return res.status(404).json({ message: 'Doctor profile not found' });
       }
 
-      doctor.specialization = specialization || doctor.specialization;
-      doctor.qualifications = qualifications ? JSON.parse(qualifications) : doctor.qualifications;
-      doctor.experience = experience || doctor.experience;
-      doctor.practiceLicense = practiceLicense || doctor.practiceLicense;
-      doctor.registrationNumber = registrationNumber || doctor.registrationNumber;
-      doctor.bio = bio || doctor.bio;
-      doctor.consultationFee = consultationFee || doctor.consultationFee;
-      doctor.availability = availability ? JSON.parse(availability) : doctor.availability;
-      doctor.symptoms = symptoms ? JSON.parse(symptoms) : doctor.symptoms;
+      const {
+        specialization,
+        experience,
+        bio,
+        consultationFee,
+        qualifications,
+        availability,
+        symptoms
+      } = req.body;
 
-      // Handle file upload to Cloudinary
-      if (req.fileUrl) {
-        doctor.licenseDocument = req.fileUrl;
+      if (specialization !== undefined && specialization !== '')
+        doctor.specialization = specialization;
+
+      if (experience !== undefined && experience !== '')
+        doctor.experience = Number(experience);
+
+      if (bio !== undefined)
+        doctor.bio = bio;
+
+      if (consultationFee !== undefined && consultationFee !== '')
+        doctor.consultationFee = Number(consultationFee);
+
+      if (qualifications) {
+        doctor.qualifications =
+          typeof qualifications === 'string'
+            ? JSON.parse(qualifications)
+            : qualifications;
       }
 
+      if (availability) {
+        doctor.availability =
+          typeof availability === 'string'
+            ? JSON.parse(availability)
+            : availability;
+      }
+
+      if (symptoms) {
+        doctor.symptoms =
+          typeof symptoms === 'string'
+            ? JSON.parse(symptoms)
+            : symptoms;
+      }
+
+      if (req.licenseDocumentUrl){
+        doctor.licenseDocument = req.licenseDocumentUrl;
+      }
+      if (req.profilePictureUrl){
+        doctor.profilePicture = req.profilePictureUrl;
+      }
       await doctor.save();
 
-      res.json(doctor);
+      res.json({
+        success: true,
+        message: 'Doctor profile saved successfully',
+        doctor
+      });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Server error' });
+      console.error('PROFILE SAVE ERROR:', error);
+      res.status(500).json({
+        message: 'Server error',
+        error: error.message
+      });
     }
   }
 );
+
 
 // Get doctor's patients
 router.get('/patients/list', auth, authorize('doctor'), async (req, res) => {
