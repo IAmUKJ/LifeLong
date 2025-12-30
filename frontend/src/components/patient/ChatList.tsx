@@ -27,19 +27,26 @@ const ChatList: React.FC<ChatListProps> = ({ selectedChatId, onChatSelected }) =
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, hasActivePlan } = useAuth();
 
   const fetchChats = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const response = await api.get('/chat/list');
-      setChats(response.data);
-    } catch (error) {
-      console.error('Error fetching chats:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  if (!hasActivePlan) {
+    setChats([]);
+    setIsLoading(false);
+    return;
+  }
+
+  try {
+    setIsLoading(true);
+    const response = await api.get('/chat/list');
+    setChats(response.data);
+  } catch (error) {
+    console.error('Error fetching chats:', error);
+  } finally {
+    setIsLoading(false);
+  }
+}, [hasActivePlan]);
+
 
   useEffect(() => {
     fetchChats();
@@ -55,14 +62,17 @@ const ChatList: React.FC<ChatListProps> = ({ selectedChatId, onChatSelected }) =
   }, [selectedChatId, chats]);
 
   const handleChatSelect = useCallback(async (chatId: string) => {
-    setSelectedChat(chatId);
-    try {
-      await api.put(`/chat/${chatId}/read`);
-      fetchChats();
-    } catch (error) {
-      console.error('Error marking chat as read:', error);
-    }
-  }, [fetchChats]);
+  if (!hasActivePlan) return;
+
+  setSelectedChat(chatId);
+  try {
+    await api.put(`/chat/${chatId}/read`);
+    fetchChats();
+  } catch (error) {
+    console.error('Error marking chat as read:', error);
+  }
+}, [fetchChats, hasActivePlan]);
+
 
   const handleBack = useCallback(() => {
     setSelectedChat(null);
@@ -101,7 +111,7 @@ const ChatList: React.FC<ChatListProps> = ({ selectedChatId, onChatSelected }) =
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }, []);
 
-  if (selectedChat) {
+  if (selectedChat && hasActivePlan) {
     return (
       <ChatWindow
         roomId={selectedChat}
@@ -110,6 +120,43 @@ const ChatList: React.FC<ChatListProps> = ({ selectedChatId, onChatSelected }) =
       />
     );
   }
+  if (!hasActivePlan) {
+  return (
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-10 flex flex-col items-center text-center">
+      <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6">
+        <svg
+          className="w-12 h-12 text-red-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 11c0-3.866 3.134-7 7-7M5 12h14m-7 7a7 7 0 01-7-7"
+          />
+        </svg>
+      </div>
+
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        Chat Locked
+      </h2>
+
+      <p className="text-gray-600 max-w-md mb-6">
+        Your subscription has expired or you don’t have an active plan.
+        Upgrade your plan to chat with doctors.
+      </p>
+
+      <button
+        onClick={() => window.location.href = "/subscription"}
+        className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition"
+      >
+        Upgrade Plan
+      </button>
+    </div>
+  );
+}
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -151,10 +198,17 @@ const ChatList: React.FC<ChatListProps> = ({ selectedChatId, onChatSelected }) =
                 
                 return (
                   <button
-                    key={chat._id}
-                    onClick={() => handleChatSelect(chat._id)}
-                    className="w-full p-4 text-left hover:bg-blue-50 transition-colors duration-150 group"
-                  >
+                      key={chat._id}
+                      onClick={() => handleChatSelect(chat._id)}
+                      disabled={!hasActivePlan}
+                      className={`w-full p-4 text-left transition-colors duration-150
+                        ${
+                          hasActivePlan
+                            ? "hover:bg-blue-50"
+                            : "cursor-not-allowed opacity-60"
+                        }
+                      `}
+                    >
                     <div className="flex items-start gap-3">
                       {/* Avatar */}
                       <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md group-hover:shadow-lg transition-shadow">

@@ -25,8 +25,8 @@ const SymptomFilter: React.FC<SymptomFilterProps> = ({ onFilter }) => {
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-      <h3 className="font-semibold text-gray-900 mb-3">Describe Your Symptoms</h3>
+    <div className="bg-pink-500 p-4 rounded-2xl shadow-lg border border-pink-700">
+      <h3 className="font-semibold text-white mb-3">Describe Your Symptoms</h3>
       <div className="flex gap-2 mb-3">
         <input
           type="text"
@@ -34,11 +34,11 @@ const SymptomFilter: React.FC<SymptomFilterProps> = ({ onFilter }) => {
           onChange={(e) => setSymptom(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && addSymptom()}
           placeholder="e.g., fever, headache"
-          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-700 focus:border-transparent"
         />
         <button
           onClick={addSymptom}
-          className="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 transition-colors"
+          className="px-4 py-2 bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-700 text-white text-sm font-medium rounded-md hover:bg-orange-700 transition-colors"
         >
           Add
         </button>

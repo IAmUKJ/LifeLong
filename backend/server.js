@@ -64,7 +64,7 @@ app.use('/api/hospitals', require('./routes/hospitals'));
 app.use('/api/fitness', require('./routes/fitness'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/ratings', require('./routes/ratings'));
-
+app.use('/api/payments',require('./routes/transaction'))
 /* =========================
    SOCKET.IO – REAL CHAT LOGIC
 ========================= */

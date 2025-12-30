@@ -7,13 +7,14 @@ import MedicineAssignment from '../components/doctor/MedicineAssignment';
 import ReportGeneration from '../components/doctor/ReportGeneration';
 import DoctorProfile from '../components/doctor/DoctorProfile';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import image from '../assets/image.png'
+import { useNavigate } from 'react-router-dom';
 const DoctorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('patients');
   const [doctorProfile, setDoctorProfile] = useState<any>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  const navigate = useNavigate()
   useEffect(() => {
     fetchDoctorProfile();
   }, []);
@@ -87,16 +88,20 @@ const DoctorDashboard: React.FC = () => {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 200 }}
-                className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center shadow-lg"
+                className="w-12 h-12 bg-gradient-to-br rounded-2xl flex items-center justify-center shadow-lg"
               >
-                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-              </motion.div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                  LifeLong
-                </h1>
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+                      <img
+                        src={image}
+                        alt="LifeLong Medicare"
+                        className="h-10 w-10 object-contain"
+                      />
+                    </div>
+                    </motion.div>
+                    <div>
+                      <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+                        LifeLong
+                      </span>
                 <p className="text-xs text-gray-500 font-medium">Doctor Portal</p>
               </div>
             </div>

@@ -3,7 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import SymptomFilter from '../components/patient/SymptomFilter';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import { useNavigate } from 'react-router-dom';
+import { assets } from '../assets/assets';
+import  image  from '../assets/image.png'
 // Lazy load heavy components for better performance
 const DoctorList = lazy(() => import('../components/patient/DoctorList'));
 const ChatList = lazy(() => import('../components/patient/ChatList'));
@@ -20,11 +22,17 @@ const LoadingSpinner = () => (
 );
 
 const PatientDashboard: React.FC = () => {
+  const navigate = useNavigate()
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('doctors');
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+  const [credits, setCredits] = useState<number>(0);
+  const [loadingCredits, setLoadingCredits] = useState<boolean>(false);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<boolean>(false);
+  const [duration, setDuration] = useState<string | null>(null);
+  const [loadingDuration, setLoadingDuration] = useState<boolean>(false);
   // Memoized tabs configuration to prevent re-creation
   const tabs = useMemo(() => [
     { 
@@ -64,7 +72,56 @@ const PatientDashboard: React.FC = () => {
     user?.name?.charAt(0).toUpperCase() || 'U', 
     [user?.name]
   );
+  useEffect(() => {
+  const fetchCredits = async () => {
+    if (!user?.id) return;
 
+    try {
+      setLoadingCredits(true);
+
+      const res = await api.get(
+        `/payments/credits/${user.id}`,
+        { withCredentials: true }
+      );
+
+      if (res.data?.success) {
+        setCredits(res.data.credits);
+      }
+    } catch (err) {
+      console.error("Failed to fetch credits", err);
+    } finally {
+      setLoadingCredits(false);
+    }
+  };
+
+  fetchCredits();
+}, [user?.id]);
+useEffect(() => {
+  const fetchPlan = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoadingPlan(true);
+      setLoadingDuration(true);
+      const res = await api.get(
+        `/payments/plan/${user.id}`,
+        { withCredentials: true }
+      );
+
+      if (res.data?.success) {
+        setPlan(res.data.plan);
+        setDuration(res.data.duration)
+      }
+    } catch (err) {
+      console.error("Failed to fetch credits", err);
+    } finally {
+      setLoadingPlan(false);
+      setLoadingDuration(false);
+    }
+  };
+
+  fetchPlan();
+}, [user?.id]);
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50">
       {/* Navigation */}
@@ -77,22 +134,67 @@ const PatientDashboard: React.FC = () => {
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 200 }}
-                      className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center shadow-lg"
+                      className="w-12 h-12 bg-gradient-to-br rounded-2xl flex items-center justify-center shadow-lg"
                     >
-                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
+                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+                      <img
+                        src={image}
+                        alt="LifeLong Medicare"
+                        className="h-10 w-10 object-contain"
+                      />
+                    </div>
                     </motion.div>
                     <div>
-                      <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                      <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                         LifeLong
-                      </h1>
+                      </span>
                       <p className="text-xs text-gray-500 font-medium">Patient Portal</p>
                     </div>
                   </div>
       
                   {/* Desktop User Menu */}
                   <div className="hidden md:flex items-center space-x-4">
+                    <div>
+                    {user ? (
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        
+                        {/* Subscription Button */}
+                        <button
+                          onClick={() => navigate("/subscription")}
+                          className="flex items-center gap-2 bg-blue-100 px-4 sm:px-6 py-1.5 sm:py-3 rounded-full hover:scale-105 transition-all duration-700"
+                        >
+                          <img className="w-5" src={assets.credit_star} alt="" />
+                          <div className="text-left leading-tight">
+                          <p className="text-xs sm:text-sm font-semibold text-gray-800">
+                            {plan ? `${plan} Plan` : "No Active Plan"}
+                          </p>
+
+                          {plan && (
+                            <p className="text-[11px] sm:text-xs text-gray-600">
+                              {credits} credits • {duration}
+                            </p>
+                          )}
+                        </div>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 sm:gap-5">
+                        <p
+                          onClick={() => navigate("/subscription")}
+                          className="cursor-pointer"
+                        >
+                          Pricing
+                        </p>
+
+                        <button
+                    
+                          className="bg-zinc-800 text-white px-7 py-2 sm:px-10 text-sm rounded-full"
+                        >
+                          Login
+                        </button>
+                      </div>
+                    )}
+                  </div>
                     <div className="flex items-center space-x-3 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-md">
                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,6 +242,40 @@ const PatientDashboard: React.FC = () => {
                       exit={{ height: 0, opacity: 0 }}
                       className="md:hidden border-t border-gray-200 py-4 space-y-2 overflow-hidden"
                     >
+                      {/* Mobile Subscription Info */}
+                      <div className="mx-4 mb-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10  rounded-lg flex items-center justify-center">
+                            <img src={assets.credit_star} alt="credits" className="w-5 h-5" />
+                          </div>
+
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {plan ? `${plan} Plan` : "No Active Plan"}
+                            </p>
+
+                            {plan ? (
+                              <p className="text-xs text-gray-600">
+                                {credits} credits • {duration}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-gray-500">
+                                Subscribe to unlock features
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            navigate("/subscription");
+                          }}
+                          className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
+                        >
+                          {plan ? "Upgrade Plan" : "View Plans"}
+                        </button>
+                      </div>
                       <div className="flex items-center space-x-3 px-4 py-3 bg-blue-50 rounded-lg">
                         <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,7 +283,7 @@ const PatientDashboard: React.FC = () => {
                           </svg>
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">Dr. {user?.name}</p>
+                          <p className="font-semibold text-gray-900">{user?.name}</p>
                           <p className="text-xs text-gray-500">Medical Professional</p>
                         </div>
                       </div>
@@ -194,15 +330,9 @@ const PatientDashboard: React.FC = () => {
           <Suspense fallback={<LoadingSpinner />}>
             {activeTab === 'doctors' && (
               <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
-                  <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    Filter by Symptoms
-                  </h2>
+                
                   <SymptomFilter onFilter={setSymptoms} />
-                </div>
+                
                 <DoctorList symptoms={symptoms} />
               </div>
             )}
