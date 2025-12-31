@@ -144,6 +144,61 @@ The platform includes an advanced AI chatbot powered by RAG (Retrieval-Augmented
 - **Document Learning**: System learns from uploaded content
 - **Fallback Mode**: Graceful degradation when AI services unavailable
 
+🔹 Redis Caching Strategy
+
+This project uses Redis as an in-memory cache to improve performance and scalability while keeping MongoDB as the single source of truth.
+
+Redis is integrated selectively—only for read-heavy, repeatable queries—ensuring data correctness and system stability.
+
+🔸 Where Redis Is Used
+✅ Authentication
+
+   Cached authenticated user profile (GET /auth/me)
+
+   Reduces repeated database lookups on dashboard reloads
+
+✅ Doctors Module
+
+   Cached public doctor listings with query-based keys
+
+   Cached doctor profiles (public & private)
+
+   Selective cache invalidation on profile updates
+
+✅ Medicines Module
+
+   Cached patient medicine dashboard
+
+   Cached doctor-assigned medicines list
+
+   Cache invalidation on assignment and status updates
+
+✅ Chat System
+
+   Cached chat list per user with short TTL
+
+   Messages and real-time events handled via MongoDB + Socket.IO
+
+   Cache invalidated on new messages to prevent stale unread counts
+
+✅ AI Module
+
+   Cached AI chat history (read-only) with short TTL
+
+   AI inference, RAG responses, and file analysis are never cached
+
+   Cache invalidation triggered after AI chat updates
+
+✅ Payments & Subscriptions
+
+   Cached user credit balance
+
+   Cached active subscription plan
+
+   Payment creation & verification always hit MongoDB directly
+
+   Cache invalidation after successful payment verification
+
 ## Project Structure
 
 ```
