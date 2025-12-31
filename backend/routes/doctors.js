@@ -7,11 +7,22 @@ const Patient = require('../models/Patient');
 const { Chat } = require('../models/Chat');
 const { uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
 const { upload } = require('../middleware/multer');
+const redisClient = require('../utils/redis');
 
 // Get all verified doctors
 router.get('/', async (req, res) => {
   try {
     const { specialization, symptom } = req.query;
+
+    const cacheKey = `doctors:list:${specialization || 'all'}:${symptom || 'all'}`;
+
+    // 1️⃣ Check Redis
+    const cachedDoctors = await redisClient.get(cacheKey);
+    if (cachedDoctors) {
+      console.log('⚡ Doctors list served from Redis');
+      return res.json(JSON.parse(cachedDoctors));
+    }
+
     let query = { isVerified: true };
 
     if (specialization) {
@@ -26,6 +37,14 @@ router.get('/', async (req, res) => {
       .populate('userId', 'name email phone profilePicture')
       .select('-licenseDocument');
 
+    // 2️⃣ Cache for 10 minutes
+    await redisClient.setEx(
+      cacheKey,
+      600,
+      JSON.stringify(doctors)
+    );
+
+    console.log('📦 Doctors list cached in Redis');
     res.json(doctors);
   } catch (error) {
     console.error(error);
@@ -36,6 +55,14 @@ router.get('/', async (req, res) => {
 // Get doctor profile
 router.get('/profile', auth, authorize('doctor'), async (req, res) => {
   try {
+    const cacheKey = `doctor:profile:${req.user._id}`;
+
+    const cachedDoctor = await redisClient.get(cacheKey);
+    if (cachedDoctor) {
+      console.log('⚡ Doctor profile served from Redis');
+      return res.json(JSON.parse(cachedDoctor));
+    }
+
     const doctor = await Doctor.findOne({ userId: req.user._id })
       .populate('userId', 'name email phone profilePicture');
 
@@ -43,6 +70,13 @@ router.get('/profile', auth, authorize('doctor'), async (req, res) => {
       return res.status(404).json({ message: 'Doctor profile not found' });
     }
 
+    await redisClient.setEx(
+      cacheKey,
+      300,
+      JSON.stringify(doctor)
+    );
+
+    console.log('📦 Doctor profile cached in Redis');
     res.json(doctor);
   } catch (error) {
     console.error(error);
@@ -119,6 +153,8 @@ router.put(
         doctor.profilePicture = req.profilePictureUrl;
       }
       await doctor.save();
+      await redisClient.del(`doctor:profile:${req.user._id}`);
+      await redisClient.del(`doctor:public:${doctor._id}`);
 
       res.json({
         success: true,
@@ -210,6 +246,13 @@ router.post('/filter-by-symptoms', async (req, res) => {
 // Get doctor by ID
 router.get('/:id', async (req, res) => {
   try {
+    const cacheKey = `doctor:public:${req.params.id}`;
+
+    const cachedDoctor = await redisClient.get(cacheKey);
+    if (cachedDoctor) {
+      return res.json(JSON.parse(cachedDoctor));
+    }
+
     const doctor = await Doctor.findById(req.params.id)
       .populate('userId', 'name email phone profilePicture')
       .select('-licenseDocument');
@@ -217,6 +260,12 @@ router.get('/:id', async (req, res) => {
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
+
+    await redisClient.setEx(
+      cacheKey,
+      600,
+      JSON.stringify(doctor)
+    );
 
     res.json(doctor);
   } catch (error) {

@@ -8,6 +8,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
+require("./utils/redis");
 
 const aiRoutes = require("./routes/aiRoutes");
 const ragService = require("./services/ragService");

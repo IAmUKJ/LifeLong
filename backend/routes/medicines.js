@@ -4,6 +4,7 @@ const { auth, authorize } = require('../middleware/auth');
 const Medicine = require('../models/Medicine');
 const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
+const redisClient = require('../utils/redis');
 
 // Assign medicine (Doctor)
 router.post('/assign', auth, authorize('doctor'), async (req, res) => {
@@ -51,6 +52,8 @@ router.post('/assign', auth, authorize('doctor'), async (req, res) => {
     });
 
     await medicine.save();
+    await redisClient.del(`medicines:patient:${patient.userId}`);
+    await redisClient.del(`medicines:doctor:${req.user._id}`);
 
     res.status(201).json(medicine);
   } catch (error) {
@@ -62,6 +65,15 @@ router.post('/assign', auth, authorize('doctor'), async (req, res) => {
 // Get medicines for patient
 router.get('/patient', auth, authorize('patient'), async (req, res) => {
   try {
+    const cacheKey = `medicines:patient:${req.user._id}`;
+
+    // 1️⃣ Check Redis
+    const cachedMedicines = await redisClient.get(cacheKey);
+    if (cachedMedicines) {
+      console.log('⚡ Patient medicines served from Redis');
+      return res.json(JSON.parse(cachedMedicines));
+    }
+
     const patient = await Patient.findOne({ userId: req.user._id });
     if (!patient) {
       return res.status(404).json({ message: 'Patient profile not found' });
@@ -81,6 +93,14 @@ router.get('/patient', auth, authorize('patient'), async (req, res) => {
       })
       .sort({ assignedAt: -1 });
 
+    // 2️⃣ Cache for 5 minutes
+    await redisClient.setEx(
+      cacheKey,
+      300,
+      JSON.stringify(medicines)
+    );
+
+    console.log('📦 Patient medicines cached in Redis');
     res.json(medicines);
   } catch (error) {
     console.error(error);
@@ -123,6 +143,14 @@ router.put('/:medicineId/taken', auth, authorize('patient'), async (req, res) =>
 // Get medicines assigned by doctor
 router.get('/doctor/assigned', auth, authorize('doctor'), async (req, res) => {
   try {
+    const cacheKey = `medicines:doctor:${req.user._id}`;
+
+    const cachedMedicines = await redisClient.get(cacheKey);
+    if (cachedMedicines) {
+      console.log('⚡ Doctor medicines served from Redis');
+      return res.json(JSON.parse(cachedMedicines));
+    }
+
     const doctor = await Doctor.findOne({ userId: req.user._id });
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor profile not found' });
@@ -139,12 +167,20 @@ router.get('/doctor/assigned', auth, authorize('doctor'), async (req, res) => {
       })
       .sort({ assignedAt: -1 });
 
+    await redisClient.setEx(
+      cacheKey,
+      300,
+      JSON.stringify(medicines)
+    );
+
+    console.log('📦 Doctor medicines cached in Redis');
     res.json(medicines);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 module.exports = router;
 

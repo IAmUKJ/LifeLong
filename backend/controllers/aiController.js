@@ -2,6 +2,7 @@ const { extractSymptoms } = require("../services/aiService");
 const ragService = require("../services/ragService");
 const { findDoctorsBySpecialization } = require("../services/doctorMatchingService");
 const { AIChat } = require("../models/Chat");
+const redisClient = require("../utils/redis");
 
 const analyzeSymptoms = async (req, res) => {
   try {
@@ -68,6 +69,9 @@ const analyzeReport = async (req, res) => {
           },
           { upsert: true, new: true }
         );
+        // 🔥 Invalidate cached AI chat history
+        await redisClient.del(`ai:chat-history:${req.user._id}:recent`);
+        await redisClient.del(`ai:chat-history:${req.user._id}:session:${sessionId}`);
 
       } catch (dbError) {
         console.error('Error storing report analysis in chat history:', dbError);
@@ -137,6 +141,9 @@ const chatWithAI = async (req, res) => {
           },
           { upsert: true, new: true }
         );
+        // 🔥 Invalidate cached AI chat history
+        await redisClient.del(`ai:chat-history:${userId}:recent`);
+        await redisClient.del(`ai:chat-history:${userId}:session:${chatSessionId}`);
 
       } catch (dbError) {
         console.error('Error storing chat history:', dbError);

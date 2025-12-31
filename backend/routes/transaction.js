@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const userModel = require("../models/User");
 const transactionModel = require("../models/transactionModel");
 const { auth, authorize } = require("../middleware/auth");
+const redisClient = require("../utils/redis");
 
 const router = express.Router();
 
@@ -182,6 +183,10 @@ router.post("/verify", auth, authorize("patient"), async (req, res) => {
       $inc: { creditBalance: transaction.credits },
     });
 
+    // 🔥 Invalidate payment-related cache
+    await redisClient.del(`payments:credits:${transaction.userId}`);
+    await redisClient.del(`payments:plan:${transaction.userId}`);
+
     res.json({ success: true, message: "Payment verified & credits added" });
   } catch (err) {
     console.error(err);
@@ -195,6 +200,14 @@ router.post("/verify", auth, authorize("patient"), async (req, res) => {
 router.get("/credits/:userId", auth, authorize("patient"), async (req, res) => {
   try {
     const { userId } = req.params;
+    const cacheKey = `payments:credits:${userId}`;
+
+    // 1️⃣ Redis check
+    const cachedCredits = await redisClient.get(cacheKey);
+    if (cachedCredits) {
+      console.log("⚡ Credits served from Redis");
+      return res.json(JSON.parse(cachedCredits));
+    }
 
     const result = await transactionModel.aggregate([
       {
@@ -211,10 +224,19 @@ router.get("/credits/:userId", auth, authorize("patient"), async (req, res) => {
       },
     ]);
 
-    res.json({
+    const response = {
       success: true,
       credits: result.length ? result[0].totalCredits : 0,
-    });
+    };
+
+    // 2️⃣ Cache for short time (60s)
+    await redisClient.setEx(
+      cacheKey,
+      60,
+      JSON.stringify(response)
+    );
+
+    res.json(response);
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -230,6 +252,13 @@ router.get("/credits/:userId", auth, authorize("patient"), async (req, res) => {
 router.get("/plan/:userId", auth, authorize("patient"), async (req, res) => {
   try {
     const { userId } = req.params;
+    const cacheKey = `payments:plan:${userId}`;
+
+    const cachedPlan = await redisClient.get(cacheKey);
+    if (cachedPlan) {
+      console.log("⚡ Plan details served from Redis");
+      return res.json(JSON.parse(cachedPlan));
+    }
 
     const plan = await transactionModel.findOne({
       userId,
@@ -237,21 +266,27 @@ router.get("/plan/:userId", auth, authorize("patient"), async (req, res) => {
       expiresAt: { $gt: new Date() },
     }).sort({ expiresAt: -1 });
 
-    if (!plan) {
-      return res.json({
-        success: true,
-        plan: null,
-        duration: null,
-      });
-    }
+    const response = plan
+      ? {
+          success: true,
+          plan: plan.plan,
+          duration: plan.duration,
+          credits: plan.credits,
+          expiresAt: plan.expiresAt,
+        }
+      : {
+          success: true,
+          plan: null,
+          duration: null,
+        };
 
-    res.json({
-      success: true,
-      plan: plan.plan,
-      duration: plan.duration,
-      credits: plan.credits,
-      expiresAt: plan.expiresAt,
-    });
+    await redisClient.setEx(
+      cacheKey,
+      60,
+      JSON.stringify(response)
+    );
+
+    res.json(response);
   } catch (err) {
     console.error(err);
     res.status(500).json({

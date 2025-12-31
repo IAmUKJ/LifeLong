@@ -9,6 +9,7 @@ const Hospital = require('../models/Hospital');
 const { auth } = require('../middleware/auth');
 const { uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
 const { upload } = require('../middleware/multer');
+const redisClient = require('../utils/redis');
 
 // Generate JWT Token
 // const generateToken = (userId) => {
@@ -170,7 +171,26 @@ router.post('/login', [
 // Get Current User
 router.get('/me', auth, async (req, res) => {
   try {
+    const cacheKey = `user:me:${req.user._id}`;
+
+    // 1️⃣ Check Redis
+    const cachedUser = await redisClient.get(cacheKey);
+    if (cachedUser) {
+      console.log('⚡ User profile served from Redis');
+      return res.json(JSON.parse(cachedUser));
+    }
+
+    // 2️⃣ Fetch from MongoDB
     const user = await User.findById(req.user._id).select('-password');
+
+    // 3️⃣ Cache for 5 minutes
+    await redisClient.setEx(
+      cacheKey,
+      300,
+      JSON.stringify(user)
+    );
+
+    console.log('📦 User profile cached in Redis');
     res.json(user);
   } catch (error) {
     console.error(error);

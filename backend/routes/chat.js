@@ -8,6 +8,7 @@ const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
 const { uploadToCloudinaryMiddleware } = require('../middleware/cloudinaryUpload');
 const { upload } = require('../middleware/multer');
+const redisClient = require('../utils/redis');
 
 /* =========================
    CREATE / GET CHAT ROOM
@@ -73,6 +74,15 @@ router.post('/room', auth, async (req, res) => {
 ========================= */
 router.get('/list', auth, async (req, res) => {
   try {
+    const cacheKey = `chat:list:${req.user._id}`;
+
+    // 1️⃣ Redis check
+    const cachedChats = await redisClient.get(cacheKey);
+    if (cachedChats) {
+      console.log('⚡ Chat list served from Redis');
+      return res.json(JSON.parse(cachedChats));
+    }
+
     const chats = await Chat.find({
       'participants.userId': req.user._id
     })
@@ -87,6 +97,13 @@ router.get('/list', auth, async (req, res) => {
       };
     });
 
+    // 2️⃣ Cache for SHORT time (60 seconds)
+    await redisClient.setEx(
+      cacheKey,
+      60,
+      JSON.stringify(result)
+    );
+
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -99,6 +116,13 @@ router.get('/list', auth, async (req, res) => {
 ========================= */
 router.get('/:roomId/messages', auth, async (req, res) => {
   try {
+    const cacheKey = `chat:messages:${req.params.roomId}`;
+
+    const cachedMessages = await redisClient.get(cacheKey);
+    if (cachedMessages) {
+      return res.json(JSON.parse(cachedMessages));
+    }
+
     const chat = await Chat.findById(req.params.roomId);
     if (!chat) return res.status(404).json({ message: 'Chat not found' });
 
@@ -106,6 +130,12 @@ router.get('/:roomId/messages', auth, async (req, res) => {
       p => p.userId.toString() === req.user._id.toString()
     );
     if (!isParticipant) return res.status(403).json({ message: 'Access denied' });
+
+    await redisClient.setEx(
+      cacheKey,
+      30, // VERY short TTL
+      JSON.stringify(chat.messages)
+    );
 
     res.json(chat.messages);
   } catch (err) {
@@ -167,6 +197,9 @@ router.post(
           [`unreadCount.${otherUserId}`]: 1
         }
       });
+      await redisClient.del(`chat:list:${req.user._id}`);
+      await redisClient.del(`chat:list:${otherUserId}`);
+      await redisClient.del(`chat:messages:${roomId}`);
 
       // 🔥 REAL-TIME EMIT (THIS WAS THE MISSING PIECE)
       const io = req.app.get('io');
