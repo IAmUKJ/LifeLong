@@ -146,58 +146,52 @@ The platform includes an advanced AI chatbot powered by RAG (Retrieval-Augmented
 
 🔹 Redis Caching Strategy
 
-This project uses Redis as an in-memory cache to improve performance and scalability while keeping MongoDB as the single source of truth.
+**This project uses Redis as an in-memory cache to improve performance and scalability while keeping MongoDB as the single source of truth.**
 
-Redis is integrated selectively—only for read-heavy, repeatable queries—ensuring data correctness and system stability.
+**Redis** is integrated selectively—only for read-heavy, repeatable queries—ensuring data correctness and system stability.
 
-🔸 Where Redis Is Used
-✅ Authentication
+🔸 Where **Redis** Is Used
+✅ **Authentication**
+   -Cached authenticated user profile (GET /auth/me)
 
-   Cached authenticated user profile (GET /auth/me)
+   -Reduces repeated database lookups on dashboard reloads
 
-   Reduces repeated database lookups on dashboard reloads
+✅ **Doctors Module**
+   -Cached public doctor listings with query-based keys
 
-✅ Doctors Module
+   -Cached doctor profiles (public & private)
 
-   Cached public doctor listings with query-based keys
+   -Selective cache invalidation on profile updates
 
-   Cached doctor profiles (public & private)
+✅ **Medicines Module**
+   -Cached patient medicine dashboard
 
-   Selective cache invalidation on profile updates
+   -Cached doctor-assigned medicines list
 
-✅ Medicines Module
+   -Cache invalidation on assignment and status updates
 
-   Cached patient medicine dashboard
+✅ **Chat System**
+   -Cached chat list per user with short TTL
 
-   Cached doctor-assigned medicines list
+   -Messages and real-time events handled via MongoDB + Socket.IO
 
-   Cache invalidation on assignment and status updates
+   -Cache invalidated on new messages to prevent stale unread counts
 
-✅ Chat System
+✅ **AI Module**
+   -Cached AI chat history (read-only) with short TTL
 
-   Cached chat list per user with short TTL
+   -AI inference, RAG responses, and file analysis are never cached
 
-   Messages and real-time events handled via MongoDB + Socket.IO
+   -Cache invalidation triggered after AI chat updates
 
-   Cache invalidated on new messages to prevent stale unread counts
+✅ **Payments & Subscriptions**
+   -Cached user credit balance
 
-✅ AI Module
+   -Cached active subscription plan
 
-   Cached AI chat history (read-only) with short TTL
+   -Payment creation & verification always hit MongoDB directly
 
-   AI inference, RAG responses, and file analysis are never cached
-
-   Cache invalidation triggered after AI chat updates
-
-✅ Payments & Subscriptions
-
-   Cached user credit balance
-
-   Cached active subscription plan
-
-   Payment creation & verification always hit MongoDB directly
-
-   Cache invalidation after successful payment verification
+   -Cache invalidation after successful payment verification
 
 ## Project Structure
 
