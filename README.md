@@ -144,7 +144,7 @@ The platform includes an advanced AI chatbot powered by RAG (Retrieval-Augmented
 - **Document Learning**: System learns from uploaded content
 - **Fallback Mode**: Graceful degradation when AI services unavailable
 
-🔹 Redis Caching Strategy
+****🔹 Redis Caching Strategy****
 
 **This project uses Redis as an in-memory cache to improve performance and scalability while keeping MongoDB as the single source of truth.**
 
